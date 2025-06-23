@@ -1,0 +1,87 @@
+<?php
+session_start();
+if (!isset($_SESSION['usuario'])) {
+    header("Location: login.php");
+    exit;
+}
+
+require 'conexao.php';
+
+if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+    try {
+        $pdo->beginTransaction();
+
+        // Captura dados da venda
+        $tipo = $_POST['tipo'];
+        $numero_pedido = $_POST['numero_pedido'];
+        $cliente_id = $_POST['cliente_id'];
+        $data_venda = $_POST['data_venda'];
+        $data_entrega = !empty($_POST['data_entrega']) ? $_POST['data_entrega'] : null;
+        $forma_pagamento = $_POST['forma_pagamento'];
+        $subtotal = $_POST['subtotal_pedido'];
+        $total_desconto = $_POST['total_desconto'];
+        $total_pedido = $_POST['total_pedido'];
+
+        // Inserir a venda na tabela 'vendas'
+        $stmt = $pdo->prepare("INSERT INTO vendas 
+            (tipo, numero_pedido, cliente_id, data_venda, data_entrega, forma_pagamento, subtotal, total_desconto, total_pedido)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+        $stmt->execute([
+            $tipo, 
+            $numero_pedido, 
+            $cliente_id, 
+            $data_venda, 
+            $data_entrega, 
+            $forma_pagamento, 
+            $subtotal, 
+            $total_desconto, 
+            $total_pedido
+        ]);
+
+        $venda_id = $pdo->lastInsertId(); // ID da venda salva
+
+        // Captura e insere os produtos da venda
+        foreach ($_POST['produto_id'] as $index => $produto_id) {
+            $quantidade = $_POST['quantidade'][$index];
+            $desconto_valor = $_POST['desconto'][$index];
+            $subtotal_item = $_POST['subtotal'][$index];
+
+            // Buscar preço atual do produto
+            $stmtProduto = $pdo->prepare("SELECT preco FROM produtos WHERE id = ?");
+            $stmtProduto->execute([$produto_id]);
+            $produto = $stmtProduto->fetch(PDO::FETCH_ASSOC);
+
+            if (!$produto) {
+                throw new Exception("Produto com ID $produto_id não encontrado.");
+            }
+
+            $preco_unitario = $produto['preco'];
+
+            // Inserir o produto na tabela 'vendas_produtos'
+            $stmtItem = $pdo->prepare("INSERT INTO vendas_produtos 
+                (venda_id, produto_id, quantidade, preco_unitario, desconto)
+                VALUES (?, ?, ?, ?, ?)");
+            $stmtItem->execute([
+                $venda_id, 
+                $produto_id, 
+                $quantidade, 
+                $preco_unitario, 
+                $desconto_valor
+            ]);
+        }
+
+        $pdo->commit();
+
+        header("Location: vendas.php?sucesso=1");
+        exit;
+
+    } catch (Exception $e) {
+        $pdo->rollBack();
+        echo "Erro ao salvar a venda: " . $e->getMessage();
+    }
+} else {
+    header("Location: venda.php");
+    exit;
+}
+?>
+

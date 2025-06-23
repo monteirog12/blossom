@@ -1,0 +1,160 @@
+<?php
+require 'conexao.php';
+require 'vendor/autoload.php'; // DomPDF + QRCode
+
+use Dompdf\Dompdf;
+use Dompdf\Options;
+use Endroid\QrCode\QrCode;
+use Endroid\QrCode\Writer\PngWriter;
+
+if (!isset($_GET['id'])) {
+    die('Venda não especificada.');
+}
+
+$idVenda = $_GET['id'];
+
+$stmt = $pdo->prepare("
+    SELECT v.*, c.nome AS cliente_nome, c.sobrenome AS cliente_sobrenome
+    FROM vendas v
+    INNER JOIN clientes c ON c.id = v.cliente_id
+    WHERE v.id = ?
+");
+$stmt->execute([$idVenda]);
+$venda = $stmt->fetch(PDO::FETCH_ASSOC);
+
+if (!$venda) {
+    die('Venda não encontrada.');
+}
+
+$stmt = $pdo->prepare("
+    SELECT vp.*, p.codigo, p.descricao
+    FROM vendas_produtos vp
+    INNER JOIN produtos p ON p.id = vp.produto_id
+    WHERE vp.venda_id = ?
+");
+$stmt->execute([$idVenda]);
+$produtos = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+// Gerar QR Code
+$paymentUrl = 'https://seulinkdepagamento.com/pagamento?id=' . $idVenda; // Troque para seu link real
+$qrCode = QrCode::create($paymentUrl)->setSize(150);
+$writer = new PngWriter();
+$qrCodeImage = $writer->write($qrCode);
+$qrCodeDataUri = $qrCodeImage->getDataUri();
+
+ob_start();
+?>
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body { font-family: 'Helvetica', sans-serif; font-size: 12px; margin: 0; padding: 20px; color: #000; }
+        .header, .footer { text-align: center; }
+        .header img { width: 120px; }
+        .company-info { margin-top: 10px; font-size: 10px; }
+        .title { margin-top: 20px; font-size: 16px; font-weight: bold; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid #000; padding: 8px; }
+        th { background-color: #f2f2f2; }
+        .totals { margin-top: 20px; width: 100%; }
+        .totals td { padding: 5px; }
+        .qr-code { margin-top: 30px; text-align: center; }
+        .footer { margin-top: 50px; font-size: 10px; color: #000; }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <img src="logo.png" alt="Logo Empresa">
+    <div class="company-info">
+        Blossom Scents Store.<br>
+        Cliffside Park<br>
+        Telefone: (929)501-3987 | Email: blossomscentsstore@gmail.com
+    </div>
+</div>
+
+<div class="title">Recibo de <?= ucfirst($venda['tipo']) ?></div>
+
+<strong>Cliente:</strong> <?= htmlspecialchars($venda['cliente_nome'] . ' ' . $venda['cliente_sobrenome']) ?><br>
+<strong>Nº Pedido:</strong> <?= htmlspecialchars($venda['numero_pedido']) ?><br>
+<strong>Data da Venda:</strong> <?= date('d/m/Y', strtotime($venda['data_venda'])) ?><br>
+<strong>Data de Entrega:</strong> <?= $venda['data_entrega'] ? date('d/m/Y', strtotime($venda['data_entrega'])) : '-' ?><br>
+<strong>Forma de Pagamento:</strong> <?= htmlspecialchars($venda['forma_pagamento']) ?><br>
+
+<table>
+    <thead>
+        <tr>
+            <th>#</th>
+            <th>Código</th>
+            <th>Descrição</th>
+            <th>Qtd</th>
+            <th>Unitário</th>
+            <th>Desc.</th>
+            <th>Total</th>
+        </tr>
+    </thead>
+    <tbody>
+        <?php 
+        $subtotalGeral = 0;
+        $totalDesconto = 0;
+        $index = 1;
+        foreach ($produtos as $produto):
+            $subtotal = ($produto['preco_unitario'] * $produto['quantidade']) - $produto['desconto'];
+            $subtotalGeral += $subtotal;
+            $totalDesconto += $produto['desconto'];
+        ?>
+        <tr>
+            <td><?= $index++ ?></td>
+            <td><?= htmlspecialchars($produto['codigo']) ?></td>
+            <td><?= htmlspecialchars($produto['descricao']) ?></td>
+            <td><?= $produto['quantidade'] ?></td>
+            <td>R$ <?= number_format($produto['preco_unitario'], 2, ',', '.') ?></td>
+            <td>R$ <?= number_format($produto['desconto'], 2, ',', '.') ?></td>
+            <td>R$ <?= number_format($subtotal, 2, ',', '.') ?></td>
+        </tr>
+        <?php endforeach; ?>
+    </tbody>
+</table>
+
+<table class="totals">
+    <tr>
+        <td align="right"><strong>Subtotal:</strong></td>
+        <td width="120" align="right">R$ <?= number_format($subtotalGeral + $totalDesconto, 2, ',', '.') ?></td>
+    </tr>
+    <tr>
+        <td align="right"><strong>Desconto Total:</strong></td>
+        <td align="right">R$ <?= number_format($totalDesconto, 2, ',', '.') ?></td>
+    </tr>
+    <tr>
+        <td align="right"><strong>Total Final:</strong></td>
+        <td align="right"><strong>R$ <?= number_format($subtotalGeral, 2, ',', '.') ?></strong></td>
+    </tr>
+</table>
+
+<div class="qr-code">
+    <p><strong>Escaneie para pagar:</strong></p>
+    <img src="<?= $qrCodeDataUri ?>" alt="QR Code Pagamento">
+</div>
+
+<div class="footer">
+    Obrigado pela preferência!<br>
+    Blosso Scents.
+</div>
+
+</body>
+</html>
+<?php
+$html = ob_get_clean();
+
+// Gerar PDF
+$options = new Options();
+$options->set('isRemoteEnabled', true);
+$dompdf = new Dompdf($options);
+
+$dompdf->loadHtml($html);
+$dompdf->setPaper('A4', 'portrait');
+$dompdf->render();
+$dompdf->stream("Recibo_Pedido_{$venda['numero_pedido']}.pdf", ["Attachment" => false]);
+exit;
+

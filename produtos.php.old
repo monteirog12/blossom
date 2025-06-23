@@ -1,0 +1,255 @@
+<?php
+session_start();
+if (!isset($_SESSION['usuario'])) {
+    header("Location: login.php");
+    exit;
+}
+require 'conexao.php';
+
+// Exclusão
+if (isset($_GET['excluir'])) {
+    $id = (int) $_GET['excluir'];
+    $stmt = $pdo->prepare("DELETE FROM produtos WHERE id = ?");
+    $stmt->execute([$id]);
+    header("Location: index.php");
+    exit;
+}
+
+// Inserção ou atualização
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $id = $_POST['id'] ?? null;
+    $codigo = htmlspecialchars($_POST['codigo']);
+    $descricao = htmlspecialchars($_POST['descricao']);
+    $tamanho = htmlspecialchars($_POST['tamanho']);
+    $preco = $_POST['preco'];
+    $estoque = $_POST['estoque'];
+    $custo = $_POST['custo'];
+    $status = $_POST['status'];
+
+    $foto_nome = null;
+    if (!empty($_FILES['foto']['name'])) {
+        $extensao = strtolower(pathinfo($_FILES['foto']['name'], PATHINFO_EXTENSION));
+        $permitidos = ['jpg', 'jpeg', 'png', 'gif'];
+        if (in_array($extensao, $permitidos)) {
+            $foto_nome = uniqid() . '.' . $extensao;
+            move_uploaded_file($_FILES['foto']['tmp_name'], 'fotos/' . $foto_nome);
+        }
+    }
+
+    if ($id) {
+        // Atualização
+        $query = "UPDATE produtos SET codigo = ?, descricao = ?, tamanho = ?, preco = ?, estoque = ?, custo = ?, status = ?";
+        $params = [$codigo, $descricao, $tamanho, $preco, $estoque, $custo, $status];
+
+        if ($foto_nome) {
+            $query .= ", foto = ?";
+            $params[] = $foto_nome;
+        }
+
+        $query .= " WHERE id = ?";
+        $params[] = $id;
+
+        $stmt = $pdo->prepare($query);
+        $stmt->execute($params);
+    } else {
+        // Inserção com data de inclusão automática
+        $data_inclusao = date('Y-m-d');
+        $stmt = $pdo->prepare("INSERT INTO produtos (codigo, descricao, tamanho, preco, estoque, custo, data_inclusao, foto, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+        $stmt->execute([$codigo, $descricao, $tamanho, $preco, $estoque, $custo, $data_inclusao, $foto_nome, $status]);
+    }
+    header("Location: index.php");
+    exit;
+}
+
+// Edição
+$produtoEdicao = null;
+if (isset($_GET['editar'])) {
+    $id = (int) $_GET['editar'];
+    $stmt = $pdo->prepare("SELECT * FROM produtos WHERE id = ?");
+    $stmt->execute([$id]);
+    $produtoEdicao = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$produtoEdicao) {
+        echo "<div class='alert alert-warning'>Produto não encontrado para edição.</div>";
+    }
+}
+
+// Filtros
+$filtroDescricao = $_GET['filtroDescricao'] ?? '';
+$filtroTamanho = $_GET['filtroTamanho'] ?? '';
+$filtroStatus = $_GET['filtroStatus'] ?? '';
+
+$query = "SELECT * FROM produtos WHERE 1=1";
+$params = [];
+
+if ($filtroDescricao) {
+    $query .= " AND descricao LIKE ?";
+    $params[] = "%$filtroDescricao%";
+}
+if ($filtroTamanho) {
+    $query .= " AND tamanho LIKE ?";
+    $params[] = "%$filtroTamanho%";
+}
+if ($filtroStatus) {
+    $query .= " AND status = ?";
+    $params[] = $filtroStatus;
+}
+
+$query .= " ORDER BY data_inclusao DESC";
+$stmt = $pdo->prepare($query);
+$stmt->execute($params);
+$produtos = $stmt->fetchAll(PDO::FETCH_ASSOC);
+?>
+
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cadastro de Produtos</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="#">Sistema de Produtos</a>
+            <div class="d-flex">
+                <a href="logout.php" class="btn btn-outline-light">Sair</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container py-4">
+        <div class="row mb-4">
+            <div class="col">
+                <h2 class="text-center">Cadastro de Produtos</h2>
+            </div>
+        </div>
+
+        <div class="card shadow-sm mb-4">
+            <div class="card-body">
+                <form method="get" class="row gy-2 gx-3 align-items-end mb-3">
+                    <div class="col-sm-4">
+                        <label for="filtroDescricao" class="form-label">Descrição</label>
+                        <input type="text" name="filtroDescricao" id="filtroDescricao" class="form-control" value="<?= htmlspecialchars($filtroDescricao) ?>">
+                    </div>
+                    <div class="col-sm-3">
+                        <label for="filtroTamanho" class="form-label">Tamanho</label>
+                        <input type="text" name="filtroTamanho" id="filtroTamanho" class="form-control" value="<?= htmlspecialchars($filtroTamanho) ?>">
+                    </div>
+                    <div class="col-sm-3">
+                        <label for="filtroStatus" class="form-label">Status</label>
+                        <select name="filtroStatus" id="filtroStatus" class="form-select">
+                            <option value="">Todos</option>
+                            <option value="ativo" <?= ($filtroStatus === 'ativo') ? 'selected' : '' ?>>Ativo</option>
+                            <option value="inativo" <?= ($filtroStatus === 'inativo') ? 'selected' : '' ?>>Inativo</option>
+                        </select>
+                    </div>
+                    <div class="col-auto">
+                        <button type="submit" class="btn btn-secondary">Filtrar</button>
+                    </div>
+                    <div class="col-auto">
+                        <a href="exportar_csv.php" class="btn btn-outline-primary">Exportar CSV</a>
+                    </div>
+                </form>
+
+                <form method="post" enctype="multipart/form-data">
+                    <input type="hidden" name="id" value="<?= isset($produtoEdicao['id']) ? (int)$produtoEdicao['id'] : '' ?>">
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label class="form-label">Código</label>
+                            <input type="text" name="codigo" class="form-control" required value="<?= htmlspecialchars($produtoEdicao['codigo'] ?? '') ?>">
+                        </div>
+                        <div class="col-md-8">
+                            <label class="form-label">Descrição</label>
+                            <input type="text" name="descricao" class="form-control" required value="<?= htmlspecialchars($produtoEdicao['descricao'] ?? '') ?>">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Tamanho</label>
+                            <input type="text" name="tamanho" class="form-control" value="<?= htmlspecialchars($produtoEdicao['tamanho'] ?? '') ?>">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Preço</label>
+                            <input type="number" step="0.01" name="preco" class="form-control" value="<?= htmlspecialchars($produtoEdicao['preco'] ?? '') ?>">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Estoque</label>
+                            <input type="number" name="estoque" class="form-control" value="<?= htmlspecialchars($produtoEdicao['estoque'] ?? '') ?>">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Custo</label>
+                            <input type="number" step="0.01" name="custo" class="form-control" value="<?= htmlspecialchars($produtoEdicao['custo'] ?? '') ?>">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Foto do Produto</label>
+                            <input type="file" name="foto" class="form-control">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Status</label>
+                            <select name="status" class="form-select">
+                                <option value="ativo" <?= (isset($produtoEdicao['status']) && $produtoEdicao['status'] === 'ativo') ? 'selected' : '' ?>>Ativo</option>
+                                <option value="inativo" <?= (isset($produtoEdicao['status']) && $produtoEdicao['status'] === 'inativo') ? 'selected' : '' ?>>Inativo</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Data de Inclusão</label>
+                            <input type="date" name="data_inclusao" class="form-control" value="<?= $produtoEdicao['data_inclusao'] ?? date('Y-m-d') ?>" readonly>
+                        </div>
+                    </div>
+                    <div class="mt-4 d-flex gap-2">
+                        <button type="submit" class="btn btn-success">Salvar</button>
+                        <button type="reset" class="btn btn-outline-secondary">Limpar</button>
+                    </div>
+                </form>
+
+                <?php if ($produtos): ?>
+                    <hr>
+                    <h5 class="mt-4">Produtos Cadastrados</h5>
+                    <table class="table table-bordered table-striped mt-2">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Código</th>
+                                <th>Descrição</th>
+                                <th>Tamanho</th>
+                                <th>Preço</th>
+                                <th>Estoque</th>
+                                <th>Status</th>
+                                <th>Data</th>
+                                <th>Foto</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($produtos as $p): ?>
+                                <tr>
+                                    <td><?= htmlspecialchars($p['codigo']) ?></td>
+                                    <td><?= htmlspecialchars($p['descricao']) ?></td>
+                                    <td><?= htmlspecialchars($p['tamanho']) ?></td>
+                                    <td>R$ <?= number_format($p['preco'], 2, ',', '.') ?></td>
+                                    <td><?= $p['estoque'] ?></td>
+                                    <td><?= ucfirst($p['status']) ?></td>
+                                    <td><?= date('d/m/Y', strtotime($p['data_inclusao'])) ?></td>
+                                    <td>
+                                        <?php if ($p['foto']): ?>
+                                            <img src="fotos/<?= $p['foto'] ?>" alt="Foto" width="50">
+                                        <?php endif; ?>
+                                    </td>
+                                    <td>
+                                        <a href="?editar=<?= $p['id'] ?>" class="btn btn-sm btn-primary">Editar</a>
+                                        <a href="?excluir=<?= $p['id'] ?>" class="btn btn-sm btn-danger" onclick="return confirm('Tem certeza que deseja excluir este produto?')">Excluir</a>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                <?php else: ?>
+                    <p class="text-muted mt-3">Nenhum produto encontrado.</p>
+                <?php endif; ?>
+
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
+

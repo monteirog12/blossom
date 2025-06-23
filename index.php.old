@@ -1,0 +1,33 @@
+<?php
+session_start();
+if (!isset($_SESSION['usuario'])) {
+    header("Location: login.php");
+    exit;
+}
+require 'conexao.php';
+?>
+
+<div class="col-auto">
+    <a href="produtos.php" class="btn btn-outline-success">Cadastra Produtos</a>
+</div>
+
+<div class="col-auto">
+    <a href="clientes.php" class="btn btn-outline-success">Cadastra Clientes</a>
+</div>
+
+<div class="col-auto">
+    <a href="cadastrar_usuario.php" class="btn btn-outline-success">Cadastrar Usuario</a>
+</div>
+
+<div class="col-auto">
+    <a href="atualizar_estoque.php" class="btn btn-outline-success">Atualizar Estoque</a>
+</div>
+
+<div class="col-auto">
+    <a href="importar_estoque.php" class="btn btn-outline-success">Importar Estoque</a>
+</div>
+
+<div class="col-auto">
+    <a href="registrar.php" class="btn btn-outline-success">Registrar</a>
+</div>
+

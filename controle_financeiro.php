@@ -1,0 +1,147 @@
+<?php
+session_start();
+if (!isset($_SESSION['usuario'])) {
+    header("Location: login.php");
+    exit;
+}
+
+require 'conexao.php';
+
+// Captura filtros do GET
+$cliente_id = $_GET['cliente_id'] ?? '';
+$data_inicio = $_GET['data_inicio'] ?? '';
+$data_fim = $_GET['data_fim'] ?? '';
+$forma_pagamento = $_GET['forma_pagamento'] ?? '';
+
+// Montar consulta SQL dinâmica
+$sql = "SELECT v.*, c.nome AS cliente_nome, c.sobrenome AS cliente_sobrenome FROM vendas v
+        INNER JOIN clientes c ON c.id = v.cliente_id WHERE 1=1";
+$params = [];
+
+if ($cliente_id !== '') {
+    $sql .= " AND v.cliente_id = ?";
+    $params[] = $cliente_id;
+}
+
+if ($data_inicio !== '') {
+    $sql .= " AND v.data_venda >= ?";
+    $params[] = $data_inicio;
+}
+
+if ($data_fim !== '') {
+    $sql .= " AND v.data_venda <= ?";
+    $params[] = $data_fim;
+}
+
+if ($forma_pagamento !== '') {
+    $sql .= " AND v.forma_pagamento = ?";
+    $params[] = $forma_pagamento;
+}
+
+$stmt = $pdo->prepare($sql);
+$stmt->execute($params);
+$vendas = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+// Buscar lista de clientes para filtro
+$clientes = $pdo->query("SELECT id, nome, sobrenome FROM clientes ORDER BY nome")->fetchAll(PDO::FETCH_ASSOC);
+
+// Totais
+$total_vendas = 0;
+$total_desconto = 0;
+foreach ($vendas as $venda) {
+    $total_vendas += $venda['total_pedido'];
+    $total_desconto += $venda['total_desconto'];
+}
+?>
+
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Controle Financeiro</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+<?php include 'menu.php'; ?>
+<div class="container py-4">
+    <h3>Controle Financeiro</h3>
+
+    <form class="row g-3 mb-4" method="get">
+        <div class="col-md-3">
+            <label class="form-label">Cliente</label>
+            <select name="cliente_id" class="form-select">
+                <option value="">Todos</option>
+                <?php foreach ($clientes as $cliente): ?>
+                    <option value="<?= $cliente['id'] ?>" <?= $cliente_id == $cliente['id'] ? 'selected' : '' ?>>
+                        <?= htmlspecialchars($cliente['nome'] . ' ' . $cliente['sobrenome']) ?>
+                    </option>
+                <?php endforeach; ?>
+            </select>
+        </div>
+
+        <div class="col-md-2">
+            <label class="form-label">Data Início</label>
+            <input type="date" name="data_inicio" class="form-control" value="<?= htmlspecialchars($data_inicio) ?>">
+        </div>
+
+        <div class="col-md-2">
+            <label class="form-label">Data Fim</label>
+            <input type="date" name="data_fim" class="form-control" value="<?= htmlspecialchars($data_fim) ?>">
+        </div>
+
+        <div class="col-md-3">
+            <label class="form-label">Forma de Pagamento</label>
+            <select name="forma_pagamento" class="form-select">
+                <option value="">Todas</option>
+                <option value="Dinheiro" <?= $forma_pagamento == 'Dinheiro' ? 'selected' : '' ?>>Dinheiro</option>
+                <option value="Zelle" <?= $forma_pagamento == 'Zelle' ? 'selected' : '' ?>>Zelle</option>
+                <option value="Apple Pay" <?= $forma_pagamento == 'Apple Pay' ? 'selected' : '' ?>>Apple Pay</option>
+                <option value="Cartao" <?= $forma_pagamento == 'Cartao' ? 'selected' : '' ?>>Cartão</option>
+            </select>
+        </div>
+
+        <div class="col-md-2 d-flex align-items-end">
+            <button class="btn btn-primary w-100">Filtrar</button>
+        </div>
+    </form>
+
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <h5>Resultados</h5>
+            <table class="table table-bordered table-striped">
+                <thead class="table-light">
+                    <tr>
+			<th>Pedido</th>
+			<th>Tipo</th>
+                        <th>Cliente</th>
+                        <th>Data</th>
+                        <th>Forma de Pagamento</th>
+                        <th>Total</th>
+                        <th>Desconto</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($vendas as $venda): ?>
+                        <tr>
+			    <td><?= htmlspecialchars($venda['numero_pedido']) ?></td>
+			    <td><?= htmlspecialchars($venda['tipo']) ?></td>
+                            <td><?= htmlspecialchars($venda['cliente_nome'] . ' ' . $venda['cliente_sobrenome']) ?></td>
+                            <td><?= date('d/m/Y', strtotime($venda['data_venda'])) ?></td>
+                            <td><?= htmlspecialchars($venda['forma_pagamento']) ?></td>
+                            <td>R$ <?= number_format($venda['total_pedido'], 2, ',', '.') ?></td>
+                            <td>R$ <?= number_format($venda['total_desconto'], 2, ',', '.') ?></td>
+                        </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+
+            <div class="mt-3">
+                <strong>Total das Vendas:</strong> R$ <?= number_format($total_vendas, 2, ',', '.') ?><br>
+                <strong>Total de Descontos:</strong> R$ <?= number_format($total_desconto, 2, ',', '.') ?>
+            </div>
+        </div>
+    </div>
+</div>
+</body>
+</html>
+
