@@ -3,23 +3,14 @@ Sales Control ERP
 
 # 👋 Hello, I'm Mauricio Monteiro
 
-🎯 **IT Professional | 30+ years of experience | Cloud Learner | DevOps Enthusiast**
+I am an IT professional focused on cloud, DevOps, and modern software platforms, with a strong background in infrastructure, systems administration, and software development.
 
-💻 I have a strong background in:
-- Systems administration (Linux & Windows Server)
-- Networking, ERP systems, and tech support
-- Development in **Delphi**, **PHP**, **SQL (MySQL, SQL Server, Oracle)**
-- Leadership and team coordination (8 years as IT Coordinator, 1 as Admin Manager)
+I have hands-on experience building and supporting reliable, secure, and scalable environments, working with technologies such as C#, .NET, Java, PHP, SQL Server, MySQL, Windows Server, Active Directory, Azure, and AWS.
 
-🌍 I'm living in the **United States for 7 years**, gaining valuable experience, fluency in **English and Spanish**, and cultural adaptability.  
-I'm now **returning to tech** and focusing on **Cloud Computing (Azure & AWS)** and **DevOps**.
+Currently, I am deepening my expertise in C# and the .NET ecosystem, strengthening object-oriented design and applying patterns and practices across cloud-based and DevOps-oriented projects. I actively connect prior experience with modern approaches to automation, deployment, and system reliability.
 
-📚 Currently:
-- Studying for **Microsoft Azure Fundamentals (AZ-900)**
-- Preparing for **AWS Cloud Practitioner**
-- Building personal projects in GitHub (automations, legacy system refactors, cloud labs)
+I hold the Microsoft Azure Fundamentals (AZ-900) certification and am preparing for AZ-104, with a focus on cloud infrastructure, automation, CI/CD, and DevOps practices in Azure and AWS environments.
 
-🚀 Reintegrating into the tech world with purpose and passion.  
-📍 Based in Brazil | Open to remote or relocation opportunities
+Core skills: C#, .NET, Azure, AWS, SQL Server, MySQL, Infrastructure, Automation, DevOps
 
-🔗 [LinkedIn](https://linkedin.com/in/monteirog12) • [GitHub](https://github.com/monteirog12)
+Objective: contribute to modern software and cloud projects by combining practical experience, continuous learning, and DevOps-driven efficiency.
